@@ -1,0 +1,98 @@
+# CryptoPulseLab.py
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import requests
+from typing import List, Dict
+from datetime import datetime
+
+class CryptoPulseLab:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.data = pd.DataFrame()
+
+    def fetch_data(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        Fetch historical data for a cryptocurrency.
+        """
+        url = f'https://api.coingecko.com/api/v3/coins/{symbol}/market_chart/range'
+        params = {
+            'vs_currency': 'usd',
+            'from': int(datetime.strptime(start_date, '%Y-%m-%d').timestamp()),
+            'to': int(datetime.strptime(end_date, '%Y-%m-%d').timestamp())
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+        prices = data['prices']
+        df = pd.DataFrame(prices, columns=['timestamp', 'price'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        return df
+
+    def load_data(self, symbol: str, start_date: str, end_date: str):
+        """
+        Load and set the historical data for analysis.
+        """
+        self.data = self.fetch_data(symbol, start_date, end_date)
+        print(f"Data loaded for {symbol} from {start_date} to {end_date}")
+
+    def calculate_moving_average(self, window: int) -> pd.Series:
+        """
+        Calculate the moving average of the price data.
+        """
+        if self.data.empty:
+            raise ValueError("Data is not loaded.")
+        return self.data['price'].rolling(window=window).mean()
+
+    def plot_data(self, moving_average_window: int = 30):
+        """
+        Plot the cryptocurrency price data and moving average.
+        """
+        if self.data.empty:
+            raise ValueError("Data is not loaded.")
+        
+        moving_avg = self.calculate_moving_average(moving_average_window)
+        
+        plt.figure(figsize=(14, 7))
+        plt.plot(self.data['timestamp'], self.data['price'], label='Price', color='blue')
+        plt.plot(self.data['timestamp'], moving_avg, label=f'{moving_average_window}-Day Moving Average', color='red')
+        plt.xlabel('Date')
+        plt.ylabel('Price (USD)')
+        plt.title('Cryptocurrency Price and Moving Average')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    def generate_summary(self) -> Dict:
+        """
+        Generate a summary of the data including basic statistics.
+        """
+        if self.data.empty:
+            raise ValueError("Data is not loaded.")
+        
+        summary = {
+            'symbol': self.data['symbol'].iloc[0] if 'symbol' in self.data.columns else 'Unknown',
+            'start_date': self.data['timestamp'].min(),
+            'end_date': self.data['timestamp'].max(),
+            'min_price': self.data['price'].min(),
+            'max_price': self.data['price'].max(),
+            'average_price': self.data['price'].mean()
+        }
+        return summary
+
+# Example usage
+if __name__ == "__main__":
+    api_key = 'your_api_key_here'  # Example API key
+    crypto_pulse_lab = CryptoPulseLab(api_key)
+    
+    # Load data for Bitcoin
+    crypto_pulse_lab.load_data(symbol='bitcoin', start_date='2024-01-01', end_date='2024-07-01')
+    
+    # Plot data with a 30-day moving average
+    crypto_pulse_lab.plot_data(moving_average_window=30)
+    
+    # Generate and print a summary
+    summary = crypto_pulse_lab.generate_summary()
+    print("Data Summary:")
+    for key, value in summary.items():
+        print(f"{key}: {value}")
